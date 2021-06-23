@@ -31,10 +31,10 @@
 
 ;;; Standard common lisp comment style is defined in the Hyperspec.
 ;;;
-;;; - Comments starting with `;;;; ' serve as a title for the code which
+;;; - Comments starting with `;;;;' serve as a title for the code which
 ;;;   follows.
 ;;;
-;;; - Comments starting with `;;; ' serve as the description for the
+;;; - Comments starting with `;;;' serve as the description for the
 ;;;   code which follows.
 
 
@@ -73,10 +73,10 @@
 
 (defun make-line (string)
   "string -> line"
-  (cond ((string-prefix-p ";;;; " string)
-	 (make-instance 'heading-line :string (subseq string 5)))
-	((string-prefix-p ";;; " string)
-	 (make-instance 'comment-line :string (subseq string 4)))
+  (cond ((string-prefix-p ";;;;" string)
+	 (make-instance 'heading-line :string (subseq string 4)))
+	((string-prefix-p ";;;" string)
+	 (make-instance 'comment-line :string (subseq string 3)))
 	((blank-p string)
 	 (make-instance 'blank-line :string string))
 	(t
@@ -149,7 +149,13 @@
        do (print-org child stream))))
 
 (defmethod print-org :before ((self section) stream)
-  (format stream "* ~A~%" (section-title self)))
+  (let ((title (section-title self)))
+    (write-char #\* stream)
+    ;; Ensure space character.
+    (unless (string-prefix-p " " title)
+      (write-char #\Space stream))
+    (write-string title stream)
+    (terpri stream)))
 
 (defmethod print-org :before ((self code-block) stream)
   (format stream "#+begin_src lisp~%"))
