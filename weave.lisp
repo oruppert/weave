@@ -1,4 +1,4 @@
-;; weave.lisp -- Convert Lisp to Org
+;; weave.lisp -- convert lisp to org
 ;;
 ;; Copyright (c) 2021, Olaf Ritter von Ruppert
 ;;
@@ -23,6 +23,20 @@
 ;; SOFTWARE.
 
 ;;;; Weave
+
+;;; I've always wanted a program to convert Lisp files using standard
+;;; comments to org files.  The emacs /outshine-mode/ is good, but has
+;;; its own comment conventions and is not that easy to get working as
+;;; part of a build process (you have to have outshine installed.)
+
+;;; Standard common lisp comment style is defined in the Hyperspec.
+;;;
+;;; - Comments starting with `;;;; ' serve as a title for the code which
+;;;   follows.
+;;;
+;;; - Comments starting with `;;; ' serve as the description for the
+;;;   code which follows.
+
 
 (defpackage :weave
   (:use :common-lisp))
@@ -71,15 +85,28 @@
 ;;;; Nodes
 
 (defclass node ()
-  ((children :initform (make-array 0 :adjustable nil :fill-pointer 0))
-   (last-child :initform nil)))
+  ((children
+    :initform (make-array 0 :adjustable t :fill-pointer 0))
+   (last-child
+    :initform nil)))
 
-(defmethod add-child ((self node) child)
-  (with-slots (children last-child) self
+(defun add-child (node child)
+  "Append CHILD to NODE."
+  (with-slots (children last-child) node
     (vector-push-extend child children)
     (setf last-child child)))
 
-(defclass document (node) ())
+(defclass document (node)
+  ())
+
+(defclass section (node)
+  ((title :initarg :title :reader section-title)))
+
+(defclass comment-block (node)
+  ())
+
+(defclass code-block (node)
+  ())
 
 (defmethod add-line ((self document) (line line))
   ;; We skip all lines before the first heading.
@@ -90,32 +117,26 @@
 (defmethod add-line ((self document) (line heading-line))
   (add-child self (make-instance 'section :title (line-string line))))
 
-(defclass section (node)
-  ((title :initarg :title :reader section-title)))
+(defgeneric accept-line (node line)
+  (:method ((self comment-block) (line comment-line)) t)
+  (:method ((self comment-block) (line blank-line)) t)
+  (:method ((self comment-block) (line code-line)) nil)
+  (:method ((self code-block) (line code-line)) t)
+  (:method ((self code-block) (line blank-line)) t)
+  (:method ((self code-block) (line comment-line)) nil))
 
-(defgeneric accept-line (node child)
-  (:method ((self node) (line line)) nil))
-
-(defgeneric block-class (line))
+(defgeneric line->block-class (line)
+  (:method ((line comment-line)) 'comment-block)
+  (:method ((line blank-line)) 'comment-block)
+  (:method ((line code-line)) 'code-block))
 
 (defmethod add-line ((self section) (line line))
   (with-slots (last-child) self
     (when (or (null last-child)
 	      (not (accept-line last-child line)))
-      (add-child self (make-instance (block-class line))))
+      (add-child self (make-instance (line->block-class line))))
     (add-child last-child
 	       (line-string line))))
-
-(defclass comment-block (node) ())
-(defmethod accept-line ((self comment-block) (line comment-line)) t)
-(defmethod accept-line ((self comment-block) (line blank-line)) t)
-(defmethod block-class ((line comment-line)) 'comment-block)
-(defmethod block-class ((line blank-line)) 'comment-block)
-
-(defclass code-block (node) ())
-(defmethod accept-line ((self code-block) (line code-line)) t)
-(defmethod accept-line ((self code-block) (line blank-line)) t)
-(defmethod block-class ((line code-line)) 'code-block)
 
 ;;;; Print Org
 
@@ -138,9 +159,10 @@
 
 ;;;; Process standard input
 
-(loop with document = (make-instance 'document)
-   for line = (read-line *standard-input* nil)
-   while line do (add-line document (make-line line))
-   finally (print-org document t))
+(unless (find-package :swank)
+  (loop with document = (make-instance 'document)
+     for line = (read-line *standard-input* nil)
+     while line do (add-line document (make-line line))
+     finally (print-org document t)))
 
 
