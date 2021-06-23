@@ -30,18 +30,14 @@
 ;;; part of a build process (you have to have outshine installed.)
 
 ;;; Standard common lisp comment style is defined in the Hyperspec.
-;;;
-;;; - Comments starting with `;;;;' serve as a title for the code which
+;;; - Comments starting with =;;;;= serve as a title for the code which
 ;;;   follows.
-;;;
-;;; - Comments starting with `;;;' serve as the description for the
+;;; - Comments starting with =;;;= serve as the description for the
 ;;;   code which follows.
 
-
-(defpackage :weave
-  (:use :common-lisp))
-
-(in-package :weave)
+;;; An example of how to convert a lisp file to org can be found in
+;;; the Makefile of this repository.
+;;; =sbcl --script weave.lisp < weave.lisp > README.org=
 
 ;;;; Strings
 
