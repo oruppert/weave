@@ -35,8 +35,13 @@
 ;;; - Comments starting with =;;;= serve as the description for the
 ;;;   code which follows.
 
-;;; An example of how to convert a lisp file to org can be found in
-;;; the Makefile of this repository.
+;;; Org files are plain text files with the following conventions:
+;;; - Lines starting with =*= are heading lines.
+;;; - Blocks starting with =#+begin_src lisp= and ending with
+;;;   =#+end_src= are lisp code.
+
+;;; This program reads a lisp file from stdin and writes out an org
+;;; file to stdout.  An example command line:
 ;;; =sbcl --script weave.lisp < weave.lisp > README.org=
 
 ;;;; Strings
@@ -69,10 +74,10 @@
 
 (defun make-line (string)
   "string -> line"
-  (cond ((string-prefix-p ";;;;" string)
-	 (make-instance 'heading-line :string (subseq string 4)))
-	((string-prefix-p ";;;" string)
-	 (make-instance 'comment-line :string (subseq string 3)))
+  (cond ((string-prefix-p ";;;; " string)
+	 (make-instance 'heading-line :string (subseq string 5)))
+	((string-prefix-p ";;; " string)
+	 (make-instance 'comment-line :string (subseq string 4)))
 	((blank-p string)
 	 (make-instance 'blank-line :string string))
 	(t
@@ -145,13 +150,7 @@
        do (print-org child stream))))
 
 (defmethod print-org :before ((self section) stream)
-  (let ((title (section-title self)))
-    (write-char #\* stream)
-    ;; Ensure space character.
-    (unless (string-prefix-p " " title)
-      (write-char #\Space stream))
-    (write-string title stream)
-    (terpri stream)))
+  (format stream "* ~a~%" (section-title self)))
 
 (defmethod print-org :before ((self code-block) stream)
   (format stream "#+begin_src lisp~%"))
@@ -161,10 +160,19 @@
 
 ;;;; Process standard input
 
+;;; Nothing much left to do.  Create a document, read lines from
+;;; standard input and add them to the document.  Finally print
+;;; the document to stdout.  One tick:  We use
+;;; ~(find-package :swank)~ to distinguish between interactive
+;;; and script use (so we can load the file in slime without
+;;; hanging.)
+
 (unless (find-package :swank)
   (loop with document = (make-instance 'document)
      for line = (read-line *standard-input* nil)
      while line do (add-line document (make-line line))
      finally (print-org document t)))
+
+;;; Happy org file creation.
 
 
