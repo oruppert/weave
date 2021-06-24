@@ -37,7 +37,7 @@
 
 ;;; Org files are plain text files with the following conventions:
 ;;; - Lines starting with =*= are heading lines.
-;;; - Blocks starting with =#+begin_src lisp= and ending with
+;;; - Text blocks starting with =#+begin_src lisp= and ending with
 ;;;   =#+end_src= are lisp code.
 
 ;;; This program reads a lisp file from stdin and writes out an org
@@ -45,6 +45,8 @@
 ;;; =sbcl --script weave.lisp < weave.lisp > README.org=
 
 ;;;; Strings
+
+;;; Just some useful string functions.
 
 (defparameter *whitespace* #(#\Space #\Tab #\Newline #\Return))
 
@@ -62,6 +64,11 @@
 
 ;;;; Lines
 
+;;; Here we map strings to lines.  We have four line-types:
+;;; comment-line, heading-line, blank-line and code-line.  Note that
+;;; the space after the semicolon is part of the prefix.  You can't
+;;; have /empty/ comment lines without a space after the semicolon.
+
 (defclass line ()
   ((string
     :initarg :string
@@ -72,8 +79,7 @@
 (defclass blank-line (line) ())
 (defclass code-line (line) ())
 
-(defun make-line (string)
-  "string -> line"
+(defun string->line (string)
   (cond ((string-prefix-p ";;;; " string)
 	 (make-instance 'heading-line :string (subseq string 5)))
 	((string-prefix-p ";;; " string)
@@ -91,7 +97,7 @@
    (last-child
     :initform nil)))
 
-(defun add-child (node child)
+(defun append-child (node child)
   "Append CHILD to NODE."
   (with-slots (children last-child) node
     (vector-push-extend child children)
@@ -103,10 +109,13 @@
 (defclass section (node)
   ((title :initarg :title :reader section-title)))
 
-(defclass comment-block (node)
+(defclass text-block (node)
   ())
 
-(defclass code-block (node)
+(defclass comment-block (text-block)
+  ())
+
+(defclass code-block (text-block)
   ())
 
 (defmethod add-line ((self document) (line line))
@@ -116,7 +125,7 @@
       (add-line last-child line))))
 
 (defmethod add-line ((self document) (line heading-line))
-  (add-child self (make-instance 'section :title (line-string line))))
+  (append-child self (make-instance 'section :title (line-string line))))
 
 (defgeneric accept-line (node line)
   (:method ((self comment-block) (line comment-line)) t)
@@ -135,9 +144,9 @@
   (with-slots (last-child) self
     (when (or (null last-child)
 	      (not (accept-line last-child line)))
-      (add-child self (make-instance (line->block-class line))))
-    (add-child last-child
-	       (line-string line))))
+      (append-child self (make-instance (line->block-class line))))
+    (append-child last-child
+		  (line-string line))))
 
 ;;;; Print Org
 
@@ -160,17 +169,17 @@
 
 ;;;; Process standard input
 
-;;; Nothing much left to do.  Create a document, read lines from
+;;; Not much left to do.  Create a document, read lines from
 ;;; standard input and add them to the document.  Finally print
-;;; the document to stdout.  One tick:  We use
+;;; the document to stdout.  One trick:  We use
 ;;; ~(find-package :swank)~ to distinguish between interactive
 ;;; and script use (so we can load the file in slime without
 ;;; hanging.)
 
 (unless (find-package :swank)
   (loop with document = (make-instance 'document)
-     for line = (read-line *standard-input* nil)
-     while line do (add-line document (make-line line))
+     for string = (read-line *standard-input* nil)
+     while string do (add-line document (string->line string))
      finally (print-org document t)))
 
 ;;; Happy org file creation.
