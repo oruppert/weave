@@ -91,6 +91,10 @@
 
 ;;;; Nodes
 
+;;; The org output is made of nodes.  A node is a thing that has
+;;; children.  We maintain a last-child slot which contains the last
+;;; child of the node.
+
 (defclass node ()
   ((children
     :initform (make-array 0 :adjustable t :fill-pointer 0))
@@ -102,6 +106,11 @@
   (with-slots (children last-child) node
     (vector-push-extend child children)
     (setf last-child child)))
+
+;;; And now define all the org nodes.
+;;; - A document node is the root node and contains sections.
+;;; - A section node contains text-block nodes.
+;;; - A text-block contains strings.
 
 (defclass document (node)
   ())
