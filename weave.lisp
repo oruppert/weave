@@ -109,7 +109,7 @@
 
 ;;; And now define all the org nodes.
 ;;; - A document node is the root node and contains sections.
-;;; - A section node contains text-block nodes.
+;;; - A section node has a heading and contains text-block nodes.
 ;;; - A text-block contains strings.
 
 (defclass document (node)
@@ -127,14 +127,23 @@
 (defclass code-block (text-block)
   ())
 
+;;; The add-line method adds a line to a node.
+;;; In the document case we add a line to the
+;;; last child if it exists.
+
 (defmethod add-line ((self document) (line line))
-  ;; We skip all lines before the first heading.
   (with-slots (last-child) self
+    ;; We skip everything before the first heading.
     (when last-child
       (add-line last-child line))))
 
+;;; Create a section an append it.
+
 (defmethod add-line ((self document) (line heading-line))
   (append-child self (make-instance 'section :title (line-string line))))
+
+;;; The section add-line method has to decide if a text-block accepts
+;;; the given line.  It does so by using the accept-line method.
 
 (defgeneric accept-line (node line)
   (:method ((self comment-block) (line comment-line)) t)
@@ -144,10 +153,15 @@
   (:method ((self code-block) (line blank-line)) t)
   (:method ((self code-block) (line comment-line)) nil))
 
+;;; Returns the text-block class corresponding to a given line.
+
 (defgeneric line->block-class (line)
   (:method ((line comment-line)) 'comment-block)
   (:method ((line blank-line)) 'comment-block)
   (:method ((line code-line)) 'code-block))
+
+;;; The section /add-line/ method creates a text-block if the
+;;; last-child is nil or doesn't accept the given line.
 
 (defmethod add-line ((self section) (line line))
   (with-slots (last-child) self
@@ -158,6 +172,12 @@
 		  (line-string line))))
 
 ;;;; Print Org
+
+;;; The print org method is simple.
+;;; - It prints strings as lines.
+;;; - Recurses into nodes.
+;;; - Adds org headings.
+;;; - And adds org-mode code-blocks to code-blocks.
 
 (defmethod print-org ((string string) stream)
   (format stream "~a~%" string))
